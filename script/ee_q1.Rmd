@@ -3,6 +3,8 @@ title: "paper1_1819_ee_q1"
 author: "Hannah Chang"
 date: "1/4/2022"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -10,12 +12,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-options()
+options(scipen = 10, digits = 3)
 ```
 
 ```{r c}
 #rr
-(316 / 1977139) / (266 / 213557)
+(3186 / 1977139) / (266 / 213557)
 
 ```
 
