@@ -1,0 +1,113 @@
+---
+title: "vaccine"
+author: "Hannah Chang"
+date: "3/31/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+
+```{r}
+pacman::p_load(XML, RCurl, tidyverse, rio, stringr)
+```
+
+## Create a url
+http://openapi.data.go.kr/openapi/service/rest/Covid19/getCovid19GenAgeCaseInfJson?serviceKey=인증키(URL Encode)&pageNo=1&numOfRows=10&startCreateDt=20200310&endCreateDt=20200414
+
+```{r}
+#Setting up the elements for url
+api <- "	https://infuser.odcloud.kr/oas/docs?namespace=15077756/v1"
+key <- "TaxRxVR8AqgXSmn034eCgeXLEU%2FZx01iBlO6gs3tKVeSdEr2v3W2WPWzN%2Bhf2Z%2BgIU99%2B1b7LCIgR0WsosPfWQ%3D%3D"
+page_no <- 1
+num_rows <- 10
+start_date <- 20211101
+end_date <- 20220331
+
+## Creating a url
+url <- paste(api, 
+             "?serviceKey=", key,
+             "&pageNo=", page_no,
+             "&numOfRows=", num_rows,
+             "&startCreateDt=", start_date,
+             "&endCreateDt=", end_date,
+             sep="")
+
+```
+
+## Download the xml document
+
+```{r}
+xmlFile <- xmlParse(url)
+  ## xmlParse() : XML 또는 HTML 파일에 대해 R에서 인식하는 구조로 변환해주는 함수
+
+```
+
+## Convert the xml document to a dataframe
+
+```{r}
+df <- xmlToDataFrame(getNodeSet(xmlFile, "//items/item"))
+  ## xmlParse() : XML 또는 HTML 파일에 대해 R에서 인식하는 구조로 변환해주는 함수
+
+```
+![table](C:/Users/hanna/OneDrive - London School of Hygiene and Tropical Medicine/Pictures/Screenshots/Screenshot (416).png)
+
+
+## Create a dataset for age-specific incidence
+
+```{r}
+# create a dataset for age-specific incidence
+df_age <- df %>%
+  filter(gubun != "남성" & gubun != "여성") %>%
+  mutate(age = recode(gubun, "80 이상" = "80+"))
+
+# select relevant columns
+df_age2 <- df_age %>%
+  select(-updateDt, -gubun, -seq)
+
+# split createDt & remove createDt
+df_age2 <- df_age2 %>%
+  mutate(date = str_split(createDt, " ", simplify=TRUE)[, 1])%>%
+  select(-createDt)
+  #TRUE returns a character matrix
+  #selects the first set of splitted texts
+
+# reorder columns
+colorder <- c('date', 'age', 'confCase', 'confCaseRate', 'death', 'deathRate', 'criticalRate')
+df_age2 <- df_age2[, colorder]
+
+# create agegroup: children (0-19), adults (20+)
+df_age3 <- df_age2
+
+df_age3 <- df_age3 %>%
+  mutate(agegroup = recode(age, 
+                           "0-9" = "children", "10-19" = "children",
+                           "20-29" = "adults", "30-39" = "adults", 
+                           "40-49" = "adults", "50-59" = "adults", 
+                           "60-69" = "adults", "70-79" = "adults",
+                           "80+" = "adults"))
+
+# change data types of variables 
+df_age3 <- df_age3 %>% 
+  mutate(case = as.numeric(confCase), 
+         case_rate = as.numeric(confCaseRate),
+         death = as.numeric(death), 
+         death_rate = as.numeric(deathRate),
+         critical_rate = as.numeric(criticalRate),
+         date = as.Date(date))%>%
+  select(-c(confCase, confCaseRate, deathRate, criticalRate))
+
+# reorder columns
+colorder <- c('date', 'age', 'agegroup', 'case', 'case_rate', 'death', 'death_rate', 'critical_rate')
+df_age3 <- df_age3[, colorder]
+
+# group by children or adults
+df_grp <- df_age3 %>%
+  group_by(agegroup, date) %>%
+  summarise(total_case = sum(case),
+            .groups = 'drop')
+```
+
